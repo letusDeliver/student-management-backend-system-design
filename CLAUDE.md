@@ -24,18 +24,23 @@ A learning project. Kunal builds a **Student Management System API** from scratc
 Node.js (v22), JavaScript (ESM), Express, PostgreSQL, Drizzle ORM + Drizzle Kit, Zod, Multer, Cloudinary, Pino, Helmet, CORS, express-rate-limit, Vitest, Supertest, OpenAPI/Swagger, Docker + Compose, Git.
 
 ## Phases
-01 Node + Express Fundamentals ← **CURRENT**
-02 Project Structure · 03 PostgreSQL · 04 Drizzle · 05 Student CRUD · 06 Validation · 07 Middleware · 08 Error Handling · 09 Search/Filter/Sort/Pagination · 10 Transactions · 11 Concurrency · 12 File Uploads · 13 Cloudinary · 14 Logging · 15 Testing · 16 API Docs · 17 Security Basics · 18 Performance · 19 Docker · 20 System Design · 21 Production Readiness · 22 Authentication · 23 Authorization/RBAC
+01 Node + Express Fundamentals ✅
+02 Project Structure ← **NEXT** · 03 PostgreSQL · 04 Drizzle · 05 Student CRUD · 06 Validation · 07 Middleware · 08 Error Handling · 09 Search/Filter/Sort/Pagination · 10 Transactions · 11 Concurrency · 12 File Uploads · 13 Cloudinary · 14 Logging · 15 Testing · 16 API Docs · 17 Security Basics · 18 Performance · 19 Docker · 20 System Design · 21 Production Readiness · 22 Authentication · 23 Authorization/RBAC
 (The order may change if the architecture calls for it. Explain why when it does.)
 
 ## Current architecture
-Single file `src/server.js` using raw node:http, in-memory `students` array. Git initialized (branch master), no commits yet as of Task 1.1 review.
+Express 5 modular monolith (early): `src/app.js` (express.json 100kb limit, routes, in-memory students + nextId, exports app), `src/server.js` (listen), `src/middlewares/{notFound,error}Middleware.js`, `src/utils/apiResponse.js` (sendSuccess/sendError, the only place the response envelope is built). Branch `main` → origin (github.com/letusDeliver/student-management-backend-system-design).
 
 ## Current task
-Phase 01 / Task 1.2: apply the 1.1 review fixes and commit, then rebuild in Express 5 (`src/app.js` exports the app, `src/server.js` calls listen). Needs 404 + error middleware mapping entity.parse.failed→400 INVALID_JSON, entity.too.large→413, else 500 with no stack leak.
+Phase 01 is complete (Task 1.2b was fixed by Claude at Kunal's request and pushed). Start Phase 02.
 
 ## Next step
-Review Task 1.2 (ask Kunal why app/server are split: testability with Supertest). Then Phase 02: the file grows → introduce routes/controllers split.
+Phase 02: app.js is growing → introduce express.Router (routes/) + controllers/. Add departments to make the need concrete.
+
+## Git workflow
+- Work on `main` and push to `origin main`.
+- **Before every push, update README.md** (status, API table, structure, env vars, roadmap, known limitations) so it matches the code. This is a standing rule from Kunal.
+- Commit messages use conventional style (`feat:`, `fix:`, `refactor:`, `docs:`).
 
 ## Architectural decisions
 (none yet; ADRs go in docs/adr/)
@@ -55,7 +60,10 @@ Review Task 1.2 (ask Kunal why app/server are split: testability with Supertest)
 - Node v22.23.1, npm 10.9.8, psql and docker are installed locally.
 
 ## Dev commands
-- `npm run dev` → node --watch (should use --env-file=.env after the fix)
+- `npm run dev` → node --env-file=.env --watch src/server.js
+- `npm start` → node src/server.js (production)
 
 ## Known issues / tech debt
-(none yet)
+- Email format isn't validated; duplicate emails are allowed (Zod + a UNIQUE constraint later).
+- errorMiddleware logs every error, including 4xx, via console.error (Pino in Phase 14); other body-parser 4xx errors (e.g. 415) fall through to 500 (Phase 08).
+- /health response is intentionally not wrapped in the envelope (for load balancers).

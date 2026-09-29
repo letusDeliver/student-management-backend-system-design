@@ -8,16 +8,16 @@ The architecture is **grown one step at a time**. Each layer (routes, controller
 
 | | |
 |---|---|
-| **Current phase** | Phase 01 — Node + Express Fundamentals |
-| **Last completed** | Task 1.1: Raw `node:http` server with an in-memory student store |
-| **In progress** | Task 1.2: Migrating to Express 5 |
+| **Current phase** | Phase 02 — Project Structure |
+| **Last completed** | Task 1.2: Migrated to Express 5 with 404 + centralized error middleware |
+| **Next** | Phase 02: Project structure (routers and controllers) |
 
 ## Tech stack
 
 | Area | Now | Planned |
 |---|---|---|
 | Runtime | Node.js 22 (ES modules) | |
-| HTTP | `node:http` | Express 5 |
+| HTTP | Express 5 | |
 | Database | In-memory array | PostgreSQL + Drizzle ORM / Drizzle Kit |
 | Validation | Manual checks | Zod |
 | Files | — | Multer + Cloudinary |
@@ -35,7 +35,8 @@ The architecture is **grown one step at a time**. Each layer (routes, controller
 git clone https://github.com/letusDeliver/student-management-backend-system-design.git
 cd student-management-backend-system-design
 npm install
-npm run dev        # starts with file watching on http://localhost:3000
+npm run dev        # loads .env and starts with file watching on http://localhost:3000
+npm start          # production start (no watcher)
 ```
 
 **Environment variables** (in a `.env` file, which is gitignored):
@@ -53,9 +54,9 @@ Base URL: `http://localhost:3000`
 | GET | `/health` | Health check | 200 | |
 | GET | `/api/students` | List all students | 200 | |
 | GET | `/api/students/:id` | Get one student | 200 | 400 `INVALID_ID`, 404 `STUDENT_NOT_FOUND` |
-| POST | `/api/students` | Create a student (`name`, `email` required) | 201 | 400 `INVALID_JSON`, 400 `VALIDATION_ERROR` |
+| POST | `/api/students` | Create a student (`name`, `email` required; `id` is server-generated) | 201 (returns the created student) | 400 `INVALID_JSON`, 400 `VALIDATION_ERROR`, 413 `PAYLOAD_TOO_LARGE` |
 
-Unknown routes return 404 `ROUTE_NOT_FOUND`.
+Unknown routes return 404 `ROUTE_NOT_FOUND`. Unexpected failures return 500 `INTERNAL_ERROR` with a generic message; details are logged server-side only. Request bodies are limited to 100kb.
 
 ### Response format
 
@@ -79,12 +80,20 @@ curl -X POST localhost:3000/api/students \
 
 ```text
 src/
-└── server.js      # HTTP server, routing, and in-memory store (to be split up as the project grows)
+├── app.js                       # Express app: body parser, routes, in-memory store (exported, no listen)
+├── server.js                    # Entry point: imports app and starts listening
+├── middlewares/
+│   ├── notFoundMiddleware.js    # 404 for unmatched routes
+│   └── errorMiddleware.js       # Maps errors to safe JSON responses
+└── utils/
+    └── apiResponse.js           # sendSuccess / sendError, the single source of the response shape
 ```
+
+`app.js` and `server.js` are separate so tests can import the app without opening a port.
 
 ## Roadmap
 
-- [ ] 01 — Node + Express fundamentals *(in progress)*
+- [x] 01 — Node + Express fundamentals
 - [ ] 02 — Project structure (routes / controllers / services)
 - [ ] 03 — PostgreSQL
 - [ ] 04 — Drizzle ORM
@@ -111,5 +120,6 @@ src/
 ## Known limitations
 
 - Data is stored in memory and is lost on restart.
-- There is no request body size limit yet.
-- `.env` is not loaded yet, so `PORT` always falls back to 3000.
+- Email format isn't validated and duplicate emails are allowed (planned: Zod + a UNIQUE constraint).
+- All routes live in `app.js` (planned: routers/controllers in Phase 02).
+- No automated tests yet (planned: Phase 15).
