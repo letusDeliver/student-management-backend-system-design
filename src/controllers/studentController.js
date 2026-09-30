@@ -1,9 +1,9 @@
 import { sendError, sendSuccess } from "../utils/apiResponse.js";
-
-let students = [{ id: 1, name: "Kunal", email: "kunal@example.com" }];
-let nextId = 2;
+import * as studentRepository from "../repositories/studentRepository.js";
+import * as departmentRepository from "../repositories/departmentRepository.js";
 
 const getAllStudents = (req, res) => {
+  const students = studentRepository.findAll();
   return sendSuccess(res, 200, students);
 };
 
@@ -19,7 +19,7 @@ const getStudentById = (req, res) => {
     );
   }
 
-  const studentData = students.find((student) => student.id === studentId);
+  const studentData = studentRepository.findById(studentId);
 
   if (!studentData) {
     return sendError(
@@ -35,7 +35,7 @@ const getStudentById = (req, res) => {
 
 const createStudent = (req, res) => {
   // req.body is undefined when the request isn't JSON
-  const { name, email } = req.body ?? {};
+  const { name, email, departmentId } = req.body ?? {};
 
   if (
     typeof name !== "string" ||
@@ -51,13 +51,31 @@ const createStudent = (req, res) => {
     );
   }
 
-  const newStudent = {
-    id: nextId++,
+  if (!Number.isInteger(departmentId) || departmentId <= 0) {
+    return sendError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "Department id must be a positive integer",
+    );
+  }
+
+  const department = departmentRepository.findById(departmentId);
+
+  if (!department) {
+    return sendError(
+      res,
+      422,
+      "INVALID_DEPARTMENT",
+      `Department with id: ${departmentId} does not exist`,
+    );
+  }
+
+  const newStudent = studentRepository.create({
     name: name.trim(),
     email: email.trim(),
-  };
-
-  students.push(newStudent);
+    departmentId,
+  });
 
   return sendSuccess(res, 201, newStudent);
 };

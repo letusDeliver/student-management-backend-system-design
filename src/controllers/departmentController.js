@@ -1,9 +1,8 @@
 import { sendSuccess, sendError } from "../utils/apiResponse.js";
-
-const departments = [{ id: 1, name: "Computer Science & Engg", code: "CSE" }];
-let nextId = 2;
+import * as departmentRepository from "../repositories/departmentRepository.js";
 
 const getDepartments = (req, res) => {
+  const departments = departmentRepository.findAll();
   return sendSuccess(res, 200, departments);
 };
 
@@ -19,9 +18,7 @@ const getDepartmentById = (req, res) => {
     );
   }
 
-  const departmentData = departments.find(
-    (department) => department.id === departmentId,
-  );
+  const departmentData = departmentRepository.findById(departmentId);
 
   if (!departmentData) {
     return sendError(
@@ -53,15 +50,11 @@ const createDepartment = (req, res) => {
     );
   }
 
-  // Clean and uppercase the code
   const normalizedCode = code.trim().toUpperCase();
 
-  // Check if code already exists
-  const codeExists = departments.some(
-    (department) => department.code === normalizedCode,
-  );
+  const departmentData = departmentRepository.findByCode(normalizedCode);
 
-  if (codeExists) {
+  if (departmentData) {
     return sendError(
       res,
       409,
@@ -70,13 +63,10 @@ const createDepartment = (req, res) => {
     );
   }
 
-  const newDepartment = {
-    id: nextId++,
+  const newDepartment = departmentRepository.create({
     name: name.trim(),
     code: normalizedCode,
-  };
-
-  departments.push(newDepartment);
+  });
 
   return sendSuccess(res, 201, newDepartment);
 };
