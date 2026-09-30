@@ -6,9 +6,12 @@
 - 400 (malformed input) vs 404 (valid request, missing resource)
 - Express: express.json({limit}), 4-arg error middleware, 404 middleware, body-parser error types
 - app.js/server.js split → tests import app without listening (Supertest)
+- express.Router: mount once with a prefix, relative paths inside; controllers = named handler functions
+- ES modules are evaluated once and cached → module-level state is a per-process singleton
+- 409 Conflict (valid request that clashes with server state) vs 400 (malformed)
 
 ## Currently learning
-- Next: Phase 02, project structure (express.Router, controllers)
+- Phase 02: Task 2.3 next (students ↔ departments; where does shared data live?)
 
 ## Mistakes & lessons
 - Mistake: buffered the request body with no size limit (a 200MB POST pushed RSS from 88MB to 639MB).
@@ -26,9 +29,16 @@
 - Mistake (1.2b attempt): the helper `sendResponse(res, status, data)` only wrapped res.status().json(); callers still built `{success, data}` themselves and errors stayed hand-written.
   Lesson: a helper must own the shape (take `data`, or `code` + `message`), otherwise it doesn't prevent drift.
 - Mistake (1.2): no commits during the task. Lesson: commit at each working checkpoint.
+- Mistake (2.2): passed `{success, data}` into sendSuccess → double-wrapped envelope.
+  Lesson: controllers pass raw data; only the helper builds the envelope.
+- Mistake (2.2): used `DUPLICATE_CODE` instead of the specified `DEPARTMENT_CODE_EXISTS`.
+  Lesson: error codes are part of the API contract; make them resource-specific.
+- Mistake (2.1/2.2): again didn't commit per task. Lesson: commit at the end of every task.
 - Mistake: `start` script used nodemon. Lesson: `start` = production command, no watchers.
 
 ## Patterns I understand
+- Router + controller per resource; app.js only wires things together
+- Normalize input before a uniqueness check
 - Response helper as the single source of truth for the API envelope (sendSuccess/sendError)
 - Early `return` from response helpers to avoid double-send; returning after registering async listeners
 
@@ -37,11 +47,13 @@
 - Committing regularly
 
 ## Completed tasks
+- 2.2 Departments module (double-wrap fixed by Kunal; error-code rename by Claude on request; pushed 2026-09-30)
+- 2.1 Student router/controller extraction (pure refactor, all checks passed)
 - 1.2 / 1.2b Express migration (1.2b fixes applied by Claude on request, 2026-09-29; verified + pushed)
 - 1.1 Raw node:http student server (all criteria passed; reviewed 2026-09-29)
 
 ## Pending tasks
-- Phase 02 Task 2.1 (to be assigned)
+- Phase 02 Task 2.3 (to be assigned)
 
 ## Backend principles
 - One crash affects all users: never let input crash the process or exhaust memory
@@ -52,4 +64,4 @@
 - Status code semantics: 201 + created resource, 4xx vs 5xx
 
 ## System-design concepts learned
-(none yet)
+- In-process state breaks with >1 instance behind a load balancer → state must live outside the process (DB)

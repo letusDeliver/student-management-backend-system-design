@@ -9,8 +9,8 @@ The architecture is **grown one step at a time**. Each layer (routes, controller
 | | |
 |---|---|
 | **Current phase** | Phase 02 — Project Structure |
-| **Last completed** | Task 1.2: Migrated to Express 5 with 404 + centralized error middleware |
-| **Next** | Phase 02: Project structure (routers and controllers) |
+| **Last completed** | Task 2.2: Departments module (router + controller, unique `code`) |
+| **Next** | Task 2.3: Link students to departments (`departmentId`) |
 
 ## Tech stack
 
@@ -55,6 +55,9 @@ Base URL: `http://localhost:3000`
 | GET | `/api/students` | List all students | 200 | |
 | GET | `/api/students/:id` | Get one student | 200 | 400 `INVALID_ID`, 404 `STUDENT_NOT_FOUND` |
 | POST | `/api/students` | Create a student (`name`, `email` required; `id` is server-generated) | 201 (returns the created student) | 400 `INVALID_JSON`, 400 `VALIDATION_ERROR`, 413 `PAYLOAD_TOO_LARGE` |
+| GET | `/api/departments` | List all departments | 200 | |
+| GET | `/api/departments/:id` | Get one department | 200 | 400 `INVALID_ID`, 404 `DEPARTMENT_NOT_FOUND` |
+| POST | `/api/departments` | Create a department (`name`, `code` required; `code` is trimmed and uppercased, must be unique) | 201 (returns the created department) | 400 `INVALID_JSON`, 400 `VALIDATION_ERROR`, 409 `DEPARTMENT_CODE_EXISTS`, 413 `PAYLOAD_TOO_LARGE` |
 
 Unknown routes return 404 `ROUTE_NOT_FOUND`. Unexpected failures return 500 `INTERNAL_ERROR` with a generic message; details are logged server-side only. Request bodies are limited to 100kb.
 
@@ -80,8 +83,14 @@ curl -X POST localhost:3000/api/students \
 
 ```text
 src/
-├── app.js                       # Express app: body parser, routes, in-memory store (exported, no listen)
+├── app.js                       # Express app: body parser, mounts routers, 404 + error middleware (exported, no listen)
 ├── server.js                    # Entry point: imports app and starts listening
+├── routes/
+│   ├── studentRoutes.js         # /api/students → student controller
+│   └── departmentRoutes.js      # /api/departments → department controller
+├── controllers/
+│   ├── studentController.js     # Student handlers + in-memory store
+│   └── departmentController.js  # Department handlers + in-memory store
 ├── middlewares/
 │   ├── notFoundMiddleware.js    # 404 for unmatched routes
 │   └── errorMiddleware.js       # Maps errors to safe JSON responses
@@ -90,6 +99,8 @@ src/
 ```
 
 `app.js` and `server.js` are separate so tests can import the app without opening a port.
+
+Each resource has a **router** (URL → handler map, relative paths, mounted once in `app.js` under its prefix) and a **controller** (reads `req`, does the work, responds via `apiResponse`). There's no service/repository layer yet; it comes when the database arrives.
 
 ## Roadmap
 
@@ -121,5 +132,7 @@ src/
 
 - Data is stored in memory and is lost on restart.
 - Email format isn't validated and duplicate emails are allowed (planned: Zod + a UNIQUE constraint).
-- All routes live in `app.js` (planned: routers/controllers in Phase 02).
+- Data lives in module-level arrays inside each controller: lost on restart, and not shared between multiple instances (planned: PostgreSQL in Phase 03).
+- The id-parsing and find-or-404 logic is duplicated across controllers (to be extracted once the right abstraction is clear).
+- Students aren't linked to departments yet (Task 2.3).
 - No automated tests yet (planned: Phase 15).

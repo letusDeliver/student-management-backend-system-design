@@ -25,17 +25,17 @@ Node.js (v22), JavaScript (ESM), Express, PostgreSQL, Drizzle ORM + Drizzle Kit,
 
 ## Phases
 01 Node + Express Fundamentals ✅
-02 Project Structure ← **NEXT** · 03 PostgreSQL · 04 Drizzle · 05 Student CRUD · 06 Validation · 07 Middleware · 08 Error Handling · 09 Search/Filter/Sort/Pagination · 10 Transactions · 11 Concurrency · 12 File Uploads · 13 Cloudinary · 14 Logging · 15 Testing · 16 API Docs · 17 Security Basics · 18 Performance · 19 Docker · 20 System Design · 21 Production Readiness · 22 Authentication · 23 Authorization/RBAC
+02 Project Structure ← **IN PROGRESS** · 03 PostgreSQL · 04 Drizzle · 05 Student CRUD · 06 Validation · 07 Middleware · 08 Error Handling · 09 Search/Filter/Sort/Pagination · 10 Transactions · 11 Concurrency · 12 File Uploads · 13 Cloudinary · 14 Logging · 15 Testing · 16 API Docs · 17 Security Basics · 18 Performance · 19 Docker · 20 System Design · 21 Production Readiness · 22 Authentication · 23 Authorization/RBAC
 (The order may change if the architecture calls for it. Explain why when it does.)
 
 ## Current architecture
-Express 5 modular monolith (early): `src/app.js` (express.json 100kb limit, routes, in-memory students + nextId, exports app), `src/server.js` (listen), `src/middlewares/{notFound,error}Middleware.js`, `src/utils/apiResponse.js` (sendSuccess/sendError, the only place the response envelope is built). Branch `main` → origin (github.com/letusDeliver/student-management-backend-system-design).
+Express 5 modular monolith (early): `src/app.js` (express.json 100kb limit, `/` + `/health`, mounts routers, notFound + error middleware, exports app), `src/server.js` (listen), `src/routes/{student,department}Routes.js` (default-export Router, relative paths), `src/controllers/{student,department}Controller.js` (named-export handlers + module-level in-memory arrays + nextId), `src/middlewares/{notFound,error}Middleware.js`, `src/utils/apiResponse.js` (sendSuccess/sendError, the only place the response envelope is built). No service/repository layer yet. Branch `main` → origin (github.com/letusDeliver/student-management-backend-system-design).
 
 ## Current task
-Phase 01 is complete (Task 1.2b was fixed by Claude at Kunal's request and pushed). Start Phase 02.
+Phase 02. Tasks 2.1 (student router + controller extraction) and 2.2 (departments module, unique uppercased `code`, 409 `DEPARTMENT_CODE_EXISTS`) are done and pushed. At Kunal's request, Claude renamed the 2.2 error code from `DUPLICATE_CODE` to `DEPARTMENT_CODE_EXISTS` before pushing.
 
 ## Next step
-Phase 02: app.js is growing → introduce express.Router (routes/) + controllers/. Add departments to make the need concrete.
+Task 2.3: add `departmentId` to students and validate that it exists on create. The real problem it raises: studentController needs department data without importing another controller's internals → motivates extracting data access (store/repository module). Also still pending: the duplicated id-parse and find-or-404 blocks (extract once a third copy appears, e.g. PUT/DELETE).
 
 ## Study notes
 - `docs/notes/phase-XX-interview.md`: an interview-style summary written at the end of each phase (question → answer → where we saw it).
@@ -69,4 +69,6 @@ Phase 02: app.js is growing → introduce express.Router (routes/) + controllers
 ## Known issues / tech debt
 - Email format isn't validated; duplicate emails are allowed (Zod + a UNIQUE constraint later).
 - errorMiddleware logs every error, including 4xx, via console.error (Pino in Phase 14); other body-parser 4xx errors (e.g. 415) fall through to 500 (Phase 08).
+- Module-level in-memory arrays: data is lost on restart and not shared across instances (→ Phase 03).
+- id parsing / find-or-404 duplicated in both controllers.
 - /health response is intentionally not wrapped in the envelope (for load balancers).
