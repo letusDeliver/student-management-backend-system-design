@@ -9,8 +9,8 @@ The architecture is **grown one step at a time**. Each layer (routes, controller
 | | |
 |---|---|
 | **Current phase** | Phase 03 — PostgreSQL |
-| **Last completed** | Task 2.3: Repository layer + students linked to departments (`departmentId`) |
-| **Next** | Phase 03: PostgreSQL (schema for departments + students) |
+| **Last completed** | Task 3.1: PostgreSQL database, schema (`db/`), constraint experiments |
+| **Next** | Task 3.2: SQL querying (JOINs, filtering, aggregates, UPDATE/DELETE) |
 
 ## Tech stack
 
@@ -18,7 +18,7 @@ The architecture is **grown one step at a time**. Each layer (routes, controller
 |---|---|---|
 | Runtime | Node.js 22 (ES modules) | |
 | HTTP | Express 5 | |
-| Database | In-memory array | PostgreSQL + Drizzle ORM / Drizzle Kit |
+| Database | App: in-memory arrays · Schema: PostgreSQL 16 (`db/*.sql`, not wired to the app yet) | Drizzle ORM / Drizzle Kit (Phase 04) |
 | Validation | Manual checks | Zod |
 | Files | — | Multer + Cloudinary |
 | Logging | `console` | Pino |
@@ -29,7 +29,7 @@ The architecture is **grown one step at a time**. Each layer (routes, controller
 
 ## Getting started
 
-**Requirements:** Node.js 22+
+**Requirements:** Node.js 22+, PostgreSQL 16+ (local; Docker comes in Phase 19)
 
 ```bash
 git clone https://github.com/letusDeliver/student-management-backend-system-design.git
@@ -39,11 +39,24 @@ npm run dev        # loads .env and starts with file watching on http://localhos
 npm start          # production start (no watcher)
 ```
 
+**Database setup** (the app doesn't use it yet; see Known limitations):
+
+```bash
+cp .env.example .env                      # then set your own password in DATABASE_URL
+psql -d postgres -f db/setup.sql          # as a superuser: creates role sms_app + database sms_dev (edit the password first)
+psql "$DATABASE_URL" -f db/schema.sql     # re-runnable: drops and recreates tables (destroys data)
+psql "$DATABASE_URL" -f db/seed.sql       # 2 departments, 3 students
+psql "$DATABASE_URL" -f db/experiments.sql  # every constraint rejecting bad data, with SQLSTATE codes
+```
+
+In fish, run `set -x DATABASE_URL ...` first, or paste the URL directly.
+
 **Environment variables** (in a `.env` file, which is gitignored):
 
 | Variable | Default | Description |
 |---|---|---|
 | `PORT` | `3000` | Port the HTTP server listens on |
+| `DATABASE_URL` | none | `postgres://sms_app:<password>@localhost:5432/sms_dev` (used by `psql` now, the app from Phase 04) |
 
 ## API
 
@@ -103,6 +116,30 @@ src/
     └── apiResponse.js           # sendSuccess / sendError, the single source of the response shape
 ```
 
+```text
+db/
+├── setup.sql                    # Role sms_app + database sms_dev (run once as a superuser)
+├── schema.sql                   # departments, students: PK, NOT NULL, UNIQUE, FK, FK index
+├── seed.sql                     # Development data
+└── experiments.sql              # Statements that must fail (23505 / 23503 / 23502 / 428C9)
+```
+
+### Database schema
+
+| Table | Column | Type | Rules |
+|---|---|---|---|
+| `departments` | `id` | integer | PK, `GENERATED ALWAYS AS IDENTITY` |
+| | `name` | text | NOT NULL |
+| | `code` | text | NOT NULL, UNIQUE |
+| | `created_at` | timestamptz | NOT NULL, default `now()` |
+| `students` | `id` | integer | PK, `GENERATED ALWAYS AS IDENTITY` |
+| | `name` | text | NOT NULL |
+| | `email` | text | NOT NULL, UNIQUE (case-sensitive) |
+| | `department_id` | integer | NOT NULL, FK → `departments(id)`, no cascade; indexed |
+| | `created_at` | timestamptz | NOT NULL, default `now()` |
+
+See [ADR 0002](docs/adr/0002-postgresql-schema.md).
+
 `app.js` and `server.js` are separate so tests can import the app without opening a port.
 
 Each resource has a **router** (URL → handler map, relative paths, mounted once in `app.js` under its prefix) and a **controller** (reads `req`, does the work, responds via `apiResponse`). Controllers never touch data directly; they call a **repository** (`findAll` / `findById` / `create`, …), which owns the storage and knows nothing about HTTP. Dependencies point one way: routes → controllers → repositories. See [ADR 0001](docs/adr/0001-repository-layer.md).
@@ -113,7 +150,7 @@ Architectural decisions are recorded in [`docs/adr/`](docs/adr/).
 
 - [x] 01 — Node + Express fundamentals
 - [x] 02 — Project structure (routes / controllers / repositories)
-- [ ] 03 — PostgreSQL
+- [ ] 03 — PostgreSQL (3.1 schema ✅)
 - [ ] 04 — Drizzle ORM
 - [ ] 05 — Student & Department CRUD
 - [ ] 06 — Validation (Zod)
@@ -137,9 +174,9 @@ Architectural decisions are recorded in [`docs/adr/`](docs/adr/).
 
 ## Known limitations
 
-- Data is stored in memory and is lost on restart.
-- Email format isn't validated and duplicate emails are allowed (planned: Zod + a UNIQUE constraint).
-- Data lives in module-level arrays inside each repository: lost on restart, and not shared between multiple instances (planned: PostgreSQL in Phase 03).
+- The API still stores data in module-level arrays inside each repository: lost on restart, and not shared between instances. The PostgreSQL schema exists (`db/`) but the app is wired to it only in Phase 04 (Drizzle).
+- Email format isn't validated, and the API allows duplicate emails (the DB schema has `UNIQUE (email)`, but it's case-sensitive).
+- Database setup is manual SQL files. No migrations yet (Drizzle Kit, Phase 04).
 - The id-parsing and find-or-404 logic is duplicated across controllers (to be extracted once the right abstraction is clear).
-- Deleting departments isn't supported yet; once it is, it must handle students that still reference the department (foreign key in Phase 03/04).
+- Deleting departments isn't supported yet; once it is, it must handle students that still reference the department (the DB foreign key already blocks it; the API must map that to a 409).
 - No automated tests yet (planned: Phase 15).

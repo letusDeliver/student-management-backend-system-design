@@ -12,9 +12,16 @@
 - Repository layer: owns data, hides storage, no HTTP knowledge; controllers call it (ADR 0001)
 - 422 vs 404: a body referencing a missing entity is 422; 404 is for URLs
 - ESM checks imports at load time, but an undefined identifier fails only when that line runs
+- DB = separate durable process that enforces integrity; app-level checks are UX, DB constraints are the guarantee
+- Roles vs databases; least-privilege app role; OWNER needed on PG15+ to create tables in public
+- psql: `=#` superuser vs `=>` normal role; `-#` = statement waiting for `;`; `\r` resets buffer; backslash commands are psql-only, one per line; `-c` / `-f` from the shell
+- Unix socket vs TCP (localhost/::1) connections
+- Constraints and SQLSTATE: 23505 unique, 23503 FK, 23502 not null, 428C9 GENERATED ALWAYS, 25P02 aborted transaction
+- Identity/sequence values are never rolled back → id gaps are normal
+- FK columns aren't auto-indexed; EXPLAIN: Seq Scan vs Bitmap Index Scan (100k rows: 2.6 ms vs 0.31 ms)
 
 ## Currently learning
-- Phase 03 PostgreSQL (next)
+- Phase 03 PostgreSQL (in progress; 3.1 done, 3.2 SQL querying next)
 
 ## Mistakes & lessons
 - Mistake: buffered the request body with no size limit (a 200MB POST pushed RSS from 88MB to 639MB).
@@ -43,6 +50,12 @@
 - Mistake (2.3): normalized `code` inside findByCode as well as the controller → business rule in two places.
   Lesson: repositories do exact lookups; rules live in one layer.
 - Mistake (2.3): inconsistent repo naming (findStudentById vs findById). Lesson: same interface across repositories.
+- Mistake (3.1): typed `\conninfo` in fish after `\q`. Lesson: check the prompt; backslash commands exist only inside psql.
+- Mistake (3.1): forgot `;` → next line appended to the buffer → syntax error; typed `psql ...` inside psql.
+  Lesson: `-#` means psql is still waiting; `\r` clears it.
+- Mistake (3.1): pasted `\r` and SQL onto one line → SQL swallowed as \r's arguments.
+  Lesson: a backslash command consumes the rest of its line.
+- Mistake (3.1): schema without DROP IF EXISTS / trailing `;` / FK index. Lesson: schema files must be re-runnable; index FK columns.
 - Mistake: `start` script used nodemon. Lesson: `start` = production command, no watchers.
 
 ## Patterns I understand
@@ -53,11 +66,13 @@
 - Early `return` from response helpers to avoid double-send; returning after registering async listeners
 
 ## Patterns I struggle with
+- psql/shell context switching (which prompt am I in?)
 - Testing only the error paths and skipping the happy path
 - Keeping earlier correctness (validation, id generation) when rewriting code in a new framework
 - Committing regularly
 
 ## Completed tasks
+- 3.1 Postgres role/db + schema + constraint experiments (Kunal: role, db, CREATE TABLEs; Claude completed the files on request + ADR 0002; 2026-09-30)
 - 2.3 Repository layer + departmentId on students (fixes + ADR 0001 by Claude after review; pushed 2026-09-30)
 - 2.2 Departments module (double-wrap fixed by Kunal; error-code rename by Claude on request; pushed 2026-09-30)
 - 2.1 Student router/controller extraction (pure refactor, all checks passed)
@@ -65,7 +80,7 @@
 - 1.1 Raw node:http student server (all criteria passed; reviewed 2026-09-29)
 
 ## Pending tasks
-- Phase 03 Task 3.1 (to be assigned)
+- Phase 03 Task 3.2 (to be assigned): SQL querying: WHERE/ORDER/LIMIT, INNER vs LEFT JOIN, GROUP BY, UPDATE/DELETE, BEGIN/ROLLBACK, EXPLAIN
 
 ## Backend principles
 - One crash affects all users: never let input crash the process or exhaust memory
@@ -75,6 +90,8 @@
 - Why separate app from server (testability)
 - Middleware order and 4-arg error middleware
 - Status code semantics: 201 + created resource, 4xx vs 5xx
+- Why constraints belong in the DB (check-then-insert races); SERIAL vs IDENTITY; why index FK columns
 
 ## System-design concepts learned
 - In-process state breaks with >1 instance behind a load balancer → state must live outside the process (DB)
+- Without an index, query cost grows linearly with table size (seq scan); an index keeps lookups ~flat

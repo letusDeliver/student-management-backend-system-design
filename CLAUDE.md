@@ -27,17 +27,17 @@ Node.js (v22), JavaScript (ESM), Express, PostgreSQL, Drizzle ORM + Drizzle Kit,
 ## Phases
 01 Node + Express Fundamentals ✅
 02 Project Structure ✅
-03 PostgreSQL ← **NEXT** · 04 Drizzle · 05 Student CRUD · 06 Validation · 07 Middleware · 08 Error Handling · 09 Search/Filter/Sort/Pagination · 10 Transactions · 11 Concurrency · 12 File Uploads · 13 Cloudinary · 14 Logging · 15 Testing · 16 API Docs · 17 Security Basics · 18 Performance · 19 Docker · 20 System Design · 21 Production Readiness · 22 Authentication · 23 Authorization/RBAC
+03 PostgreSQL ← **IN PROGRESS** (3.1 ✅, 3.2 next) · 04 Drizzle · 05 Student CRUD · 06 Validation · 07 Middleware · 08 Error Handling · 09 Search/Filter/Sort/Pagination · 10 Transactions · 11 Concurrency · 12 File Uploads · 13 Cloudinary · 14 Logging · 15 Testing · 16 API Docs · 17 Security Basics · 18 Performance · 19 Docker · 20 System Design · 21 Production Readiness · 22 Authentication · 23 Authorization/RBAC
 (The order may change if the architecture calls for it. Explain why when it does.)
 
 ## Current architecture
 Express 5 modular monolith (early): `src/app.js` (express.json 100kb limit, `/` + `/health`, mounts routers, notFound + error middleware, exports app), `src/server.js` (listen), `src/routes/{student,department}Routes.js` (default-export Router, relative paths), `src/controllers/{student,department}Controller.js` (named-export HTTP handlers: validation + status codes), `src/repositories/{student,department}Repository.js` (own the in-memory arrays + nextId, not exported; `findAll`/`findById`/`create` (+ `findByCode`); return shallow copies; no HTTP knowledge), `src/middlewares/{notFound,error}Middleware.js`, `src/utils/apiResponse.js` (sendSuccess/sendError, the only place the response envelope is built). Dependencies: routes → controllers → repositories. No service layer yet. Branch `main` → origin (github.com/letusDeliver/student-management-backend-system-design).
 
 ## Current task
-Phase 02 is complete (2.1–2.3 + interview notes pushed). In 2.3 Kunal built the repositories; Claude fixed the review issues (missing departmentRepository import → 500 on every valid POST; 404 → 422 `INVALID_DEPARTMENT`; normalization removed from `findByCode`; student repo names unified) and wrote ADR 0001.
+Phase 03 Task 3.1 done (2026-09-30). Kunal wrote the two CREATE TABLEs in his DB client (dbclient), then asked Claude to complete the task. Claude added DROP IF EXISTS, the missing `;`, the FK index, `db/{setup,schema,seed,experiments}.sql`, `.env(.example)` DATABASE_URL, and ADR 0002. All constraint codes were verified, plus restart persistence and index vs seq scan at 100k rows (0.31 ms vs 2.6 ms). Docker is deferred by Kunal: local Homebrew Postgres 16 for now.
 
 ## Next step
-Start Phase 03 (PostgreSQL: why a DB, local Postgres via Docker, SQL basics, schema for departments + students with a FOREIGN KEY and UNIQUE(code)). Still pending: the duplicated id-parse / find-or-404 blocks (extract when PUT/DELETE add a third copy); ESLint `no-undef` when tooling is set up.
+Task 3.2: SQL querying on the seed data (SELECT/WHERE/ORDER BY/LIMIT, INNER vs LEFT JOIN students↔departments, COUNT/GROUP BY students per department, UPDATE/DELETE with WHERE, a transaction with ROLLBACK), with `EXPLAIN`. Then Phase 04 (Drizzle: connect the repositories, async repos, map 23505/23503 to 409/422). Still pending: the duplicated id-parse / find-or-404 blocks (extract when PUT/DELETE add a third copy); ESLint `no-undef` when tooling is set up.
 
 ## Study notes
 - `docs/notes/phase-XX-interview.md`: an interview-style summary written at the end of each phase (question → answer → where we saw it).
@@ -49,9 +49,14 @@ Start Phase 03 (PostgreSQL: why a DB, local Postgres via Docker, SQL basics, sch
 
 ## Architectural decisions
 - ADR 0001: repository layer (docs/adr/0001-repository-layer.md)
+- ADR 0002: PostgreSQL, integrity in the schema, least-privilege role (docs/adr/0002-postgresql-schema.md)
 
 ## Database schema summary
-(not yet)
+Local PG 16 (Homebrew), db `sms_dev` owned by role `sms_app` (not a superuser); `DATABASE_URL` in `.env`.
+- `departments(id identity PK, name text NN, code text NN UNIQUE, created_at timestamptz NN default now())`
+- `students(id identity PK, name text NN, email text NN UNIQUE, department_id int NN FK→departments (no cascade, constraint students_department_id_fkey), created_at)` + index `students_department_id_idx`
+- Files: `db/setup.sql` (role + db), `db/schema.sql` (re-runnable, destructive), `db/seed.sql`, `db/experiments.sql`
+- Gaps: email UNIQUE is case-sensitive; code uppercase not enforced in the DB; the app isn't connected yet.
 
 ## API conventions (planned)
 - Status semantics: 400 malformed input, 404 URL target missing, 409 conflicts with current state, 422 well-formed body referencing something invalid (e.g. `INVALID_DEPARTMENT`).
@@ -63,16 +68,18 @@ Start Phase 03 (PostgreSQL: why a DB, local Postgres via Docker, SQL basics, sch
 - ES modules (`"type": "module"`), async/await, no callbacks for I/O.
 
 ## Environment
-- Node v22.23.1, npm 10.9.8, psql and docker are installed locally.
+- Node v22.23.1, npm 10.9.8, docker installed. PostgreSQL 16.15 via Homebrew (`brew services`, socket /tmp, trust auth locally, so passwords aren't checked). Kunal's shell is **fish** (no `export`; use `set -x`). Kunal also uses a VS Code DB client extension to run SQL.
 
 ## Dev commands
 - `npm run dev` → node --env-file=.env --watch src/server.js
 - `npm start` → node src/server.js (production)
+- DB: `psql "$DATABASE_URL" -f db/schema.sql` then `-f db/seed.sql`; `-f db/experiments.sql` to see the constraints fire
 
 ## Known issues / tech debt
 - Email format isn't validated; duplicate emails are allowed (Zod + a UNIQUE constraint later).
 - errorMiddleware logs every error, including 4xx, via console.error (Pino in Phase 14); other body-parser 4xx errors (e.g. 415) fall through to 500 (Phase 08).
-- Module-level in-memory arrays (in repositories): data is lost on restart and not shared across instances (→ Phase 03).
+- The app still uses module-level in-memory arrays; the Postgres schema exists but is wired up in Phase 04.
+- The API allows duplicate emails, while the DB would reject them with 23505. Map constraint errors to 409/422 in Phase 04/08.
 - id parsing / find-or-404 duplicated in both controllers.
 - Repositories are sync; they become async with Drizzle (Phase 04), and controllers will then need await.
 - No linter: an undefined identifier (missing import) is only caught at runtime.
