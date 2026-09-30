@@ -14,7 +14,7 @@
 - ESM checks imports at load time, but an undefined identifier fails only when that line runs
 
 ## Currently learning
-- Phase 02 wrap-up → Phase 03 PostgreSQL
+- Phase 03 PostgreSQL (next)
 
 ## Mistakes & lessons
 - Mistake: buffered the request body with no size limit (a 200MB POST pushed RSS from 88MB to 639MB).
@@ -65,7 +65,7 @@
 - 1.1 Raw node:http student server (all criteria passed; reviewed 2026-09-29)
 
 ## Pending tasks
-- Phase 02 interview notes → Phase 03
+- Phase 03 Task 3.1 (to be assigned)
 
 ## Backend principles
 - One crash affects all users: never let input crash the process or exhaust memory

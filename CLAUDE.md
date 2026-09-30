@@ -26,17 +26,18 @@ Node.js (v22), JavaScript (ESM), Express, PostgreSQL, Drizzle ORM + Drizzle Kit,
 
 ## Phases
 01 Node + Express Fundamentals ✅
-02 Project Structure ← **IN PROGRESS** · 03 PostgreSQL · 04 Drizzle · 05 Student CRUD · 06 Validation · 07 Middleware · 08 Error Handling · 09 Search/Filter/Sort/Pagination · 10 Transactions · 11 Concurrency · 12 File Uploads · 13 Cloudinary · 14 Logging · 15 Testing · 16 API Docs · 17 Security Basics · 18 Performance · 19 Docker · 20 System Design · 21 Production Readiness · 22 Authentication · 23 Authorization/RBAC
+02 Project Structure ✅
+03 PostgreSQL ← **NEXT** · 04 Drizzle · 05 Student CRUD · 06 Validation · 07 Middleware · 08 Error Handling · 09 Search/Filter/Sort/Pagination · 10 Transactions · 11 Concurrency · 12 File Uploads · 13 Cloudinary · 14 Logging · 15 Testing · 16 API Docs · 17 Security Basics · 18 Performance · 19 Docker · 20 System Design · 21 Production Readiness · 22 Authentication · 23 Authorization/RBAC
 (The order may change if the architecture calls for it. Explain why when it does.)
 
 ## Current architecture
 Express 5 modular monolith (early): `src/app.js` (express.json 100kb limit, `/` + `/health`, mounts routers, notFound + error middleware, exports app), `src/server.js` (listen), `src/routes/{student,department}Routes.js` (default-export Router, relative paths), `src/controllers/{student,department}Controller.js` (named-export HTTP handlers: validation + status codes), `src/repositories/{student,department}Repository.js` (own the in-memory arrays + nextId, not exported; `findAll`/`findById`/`create` (+ `findByCode`); return shallow copies; no HTTP knowledge), `src/middlewares/{notFound,error}Middleware.js`, `src/utils/apiResponse.js` (sendSuccess/sendError, the only place the response envelope is built). Dependencies: routes → controllers → repositories. No service layer yet. Branch `main` → origin (github.com/letusDeliver/student-management-backend-system-design).
 
 ## Current task
-Phase 02: Tasks 2.1, 2.2 and 2.3 are done and pushed. In 2.3 Kunal built the repositories; Claude fixed the review issues (missing departmentRepository import → 500 on every valid POST; 404 → 422 `INVALID_DEPARTMENT`; normalization removed from `findByCode`; student repo names unified) and wrote ADR 0001.
+Phase 02 is complete (2.1–2.3 + interview notes pushed). In 2.3 Kunal built the repositories; Claude fixed the review issues (missing departmentRepository import → 500 on every valid POST; 404 → 422 `INVALID_DEPARTMENT`; normalization removed from `findByCode`; student repo names unified) and wrote ADR 0001.
 
 ## Next step
-Phase 02 wrap-up: write `docs/notes/phase-02-interview.md`, then start Phase 03 (PostgreSQL: why a DB, local Postgres via Docker, SQL basics, schema for departments + students with a FOREIGN KEY and UNIQUE(code)). Still pending: the duplicated id-parse / find-or-404 blocks (extract when PUT/DELETE add a third copy); ESLint `no-undef` when tooling is set up.
+Start Phase 03 (PostgreSQL: why a DB, local Postgres via Docker, SQL basics, schema for departments + students with a FOREIGN KEY and UNIQUE(code)). Still pending: the duplicated id-parse / find-or-404 blocks (extract when PUT/DELETE add a third copy); ESLint `no-undef` when tooling is set up.
 
 ## Study notes
 - `docs/notes/phase-XX-interview.md`: an interview-style summary written at the end of each phase (question → answer → where we saw it).

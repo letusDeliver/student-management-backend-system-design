@@ -8,9 +8,9 @@ The architecture is **grown one step at a time**. Each layer (routes, controller
 
 | | |
 |---|---|
-| **Current phase** | Phase 02 — Project Structure |
+| **Current phase** | Phase 03 — PostgreSQL |
 | **Last completed** | Task 2.3: Repository layer + students linked to departments (`departmentId`) |
-| **Next** | Phase 02 wrap-up, then Phase 03: PostgreSQL |
+| **Next** | Phase 03: PostgreSQL (schema for departments + students) |
 
 ## Tech stack
 
@@ -112,7 +112,7 @@ Architectural decisions are recorded in [`docs/adr/`](docs/adr/).
 ## Roadmap
 
 - [x] 01 — Node + Express fundamentals
-- [ ] 02 — Project structure (routes / controllers / services)
+- [x] 02 — Project structure (routes / controllers / repositories)
 - [ ] 03 — PostgreSQL
 - [ ] 04 — Drizzle ORM
 - [ ] 05 — Student & Department CRUD
