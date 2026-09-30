@@ -5,6 +5,7 @@ A learning project. Kunal builds a **Student Management System API** from scratc
 
 ## Tutor rules (condensed; follow every session)
 - Kunal writes the code. Claude teaches the concept, assigns a task, then reviews. Give a full implementation only when asked.
+- **Workflow (Kunal, 2026-09-30):** Claude owns all docs/Markdown (README, ADRs, notes, CLAUDE.md, memory.md), commits and pushes, unless Kunal's effort is needed. After reviewing Kunal's task, Claude **explains every issue first, then fixes it, verifies, commits and pushes**.
 - Teach a new concept in this order: Concept → Why it exists → Analogy → Small example → Key lines → Where it goes in the architecture → Common mistakes → Task.
 - Task format: Goal / What to build / Files / Acceptance criteria / Expected behavior / Constraints, followed by "How to approach it".
 - Code reviews tag issues ❌ Incorrect / ⚠️ Problematic / 💡 Improvement / ✅ Good. Separate real bugs from style preferences.
@@ -29,13 +30,13 @@ Node.js (v22), JavaScript (ESM), Express, PostgreSQL, Drizzle ORM + Drizzle Kit,
 (The order may change if the architecture calls for it. Explain why when it does.)
 
 ## Current architecture
-Express 5 modular monolith (early): `src/app.js` (express.json 100kb limit, `/` + `/health`, mounts routers, notFound + error middleware, exports app), `src/server.js` (listen), `src/routes/{student,department}Routes.js` (default-export Router, relative paths), `src/controllers/{student,department}Controller.js` (named-export handlers + module-level in-memory arrays + nextId), `src/middlewares/{notFound,error}Middleware.js`, `src/utils/apiResponse.js` (sendSuccess/sendError, the only place the response envelope is built). No service/repository layer yet. Branch `main` → origin (github.com/letusDeliver/student-management-backend-system-design).
+Express 5 modular monolith (early): `src/app.js` (express.json 100kb limit, `/` + `/health`, mounts routers, notFound + error middleware, exports app), `src/server.js` (listen), `src/routes/{student,department}Routes.js` (default-export Router, relative paths), `src/controllers/{student,department}Controller.js` (named-export HTTP handlers: validation + status codes), `src/repositories/{student,department}Repository.js` (own the in-memory arrays + nextId, not exported; `findAll`/`findById`/`create` (+ `findByCode`); return shallow copies; no HTTP knowledge), `src/middlewares/{notFound,error}Middleware.js`, `src/utils/apiResponse.js` (sendSuccess/sendError, the only place the response envelope is built). Dependencies: routes → controllers → repositories. No service layer yet. Branch `main` → origin (github.com/letusDeliver/student-management-backend-system-design).
 
 ## Current task
-Phase 02. Tasks 2.1 (student router + controller extraction) and 2.2 (departments module, unique uppercased `code`, 409 `DEPARTMENT_CODE_EXISTS`) are done and pushed. At Kunal's request, Claude renamed the 2.2 error code from `DUPLICATE_CODE` to `DEPARTMENT_CODE_EXISTS` before pushing.
+Phase 02: Tasks 2.1, 2.2 and 2.3 are done and pushed. In 2.3 Kunal built the repositories; Claude fixed the review issues (missing departmentRepository import → 500 on every valid POST; 404 → 422 `INVALID_DEPARTMENT`; normalization removed from `findByCode`; student repo names unified) and wrote ADR 0001.
 
 ## Next step
-Task 2.3: add `departmentId` to students and validate that it exists on create. The real problem it raises: studentController needs department data without importing another controller's internals → motivates extracting data access (store/repository module). Also still pending: the duplicated id-parse and find-or-404 blocks (extract once a third copy appears, e.g. PUT/DELETE).
+Phase 02 wrap-up: write `docs/notes/phase-02-interview.md`, then start Phase 03 (PostgreSQL: why a DB, local Postgres via Docker, SQL basics, schema for departments + students with a FOREIGN KEY and UNIQUE(code)). Still pending: the duplicated id-parse / find-or-404 blocks (extract when PUT/DELETE add a third copy); ESLint `no-undef` when tooling is set up.
 
 ## Study notes
 - `docs/notes/phase-XX-interview.md`: an interview-style summary written at the end of each phase (question → answer → where we saw it).
@@ -46,12 +47,13 @@ Task 2.3: add `departmentId` to students and validate that it exists on create. 
 - Commit messages use conventional style (`feat:`, `fix:`, `refactor:`, `docs:`).
 
 ## Architectural decisions
-(none yet; ADRs go in docs/adr/)
+- ADR 0001: repository layer (docs/adr/0001-repository-layer.md)
 
 ## Database schema summary
 (not yet)
 
 ## API conventions (planned)
+- Status semantics: 400 malformed input, 404 URL target missing, 409 conflicts with current state, 422 well-formed body referencing something invalid (e.g. `INVALID_DEPARTMENT`).
 - Base path `/api`; plural resource names (`/api/students`, `/api/departments`).
 - Success shape: `{ "success": true, "data": ... }`
 - Error shape: `{ "success": false, "error": { "code": "STUDENT_NOT_FOUND", "message": "..." } }`
@@ -69,6 +71,8 @@ Task 2.3: add `departmentId` to students and validate that it exists on create. 
 ## Known issues / tech debt
 - Email format isn't validated; duplicate emails are allowed (Zod + a UNIQUE constraint later).
 - errorMiddleware logs every error, including 4xx, via console.error (Pino in Phase 14); other body-parser 4xx errors (e.g. 415) fall through to 500 (Phase 08).
-- Module-level in-memory arrays: data is lost on restart and not shared across instances (→ Phase 03).
+- Module-level in-memory arrays (in repositories): data is lost on restart and not shared across instances (→ Phase 03).
 - id parsing / find-or-404 duplicated in both controllers.
+- Repositories are sync; they become async with Drizzle (Phase 04), and controllers will then need await.
+- No linter: an undefined identifier (missing import) is only caught at runtime.
 - /health response is intentionally not wrapped in the envelope (for load balancers).

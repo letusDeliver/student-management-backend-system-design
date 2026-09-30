@@ -9,9 +9,12 @@
 - express.Router: mount once with a prefix, relative paths inside; controllers = named handler functions
 - ES modules are evaluated once and cached → module-level state is a per-process singleton
 - 409 Conflict (valid request that clashes with server state) vs 400 (malformed)
+- Repository layer: owns data, hides storage, no HTTP knowledge; controllers call it (ADR 0001)
+- 422 vs 404: a body referencing a missing entity is 422; 404 is for URLs
+- ESM checks imports at load time, but an undefined identifier fails only when that line runs
 
 ## Currently learning
-- Phase 02: Task 2.3 next (students ↔ departments; where does shared data live?)
+- Phase 02 wrap-up → Phase 03 PostgreSQL
 
 ## Mistakes & lessons
 - Mistake: buffered the request body with no size limit (a 200MB POST pushed RSS from 88MB to 639MB).
@@ -34,31 +37,41 @@
 - Mistake (2.2): used `DUPLICATE_CODE` instead of the specified `DEPARTMENT_CODE_EXISTS`.
   Lesson: error codes are part of the API contract; make them resource-specific.
 - Mistake (2.1/2.2): again didn't commit per task. Lesson: commit at the end of every task.
+- Mistake (2.3): forgot to import departmentRepository → ReferenceError → 500 on every valid POST; only tested the 400 paths.
+  Lesson: test the happy path first (it runs every line); a linter (no-undef) catches this statically.
+- Mistake (2.3): returned 404 DEPARTMENT_NOT_FOUND for a bad departmentId in the body (spec: 422 INVALID_DEPARTMENT).
+- Mistake (2.3): normalized `code` inside findByCode as well as the controller → business rule in two places.
+  Lesson: repositories do exact lookups; rules live in one layer.
+- Mistake (2.3): inconsistent repo naming (findStudentById vs findById). Lesson: same interface across repositories.
 - Mistake: `start` script used nodemon. Lesson: `start` = production command, no watchers.
 
 ## Patterns I understand
+- Defensive copies from repositories ({...obj}) so callers can't mutate stored state (did this unprompted in 2.3)
 - Router + controller per resource; app.js only wires things together
 - Normalize input before a uniqueness check
 - Response helper as the single source of truth for the API envelope (sendSuccess/sendError)
 - Early `return` from response helpers to avoid double-send; returning after registering async listeners
 
 ## Patterns I struggle with
+- Testing only the error paths and skipping the happy path
 - Keeping earlier correctness (validation, id generation) when rewriting code in a new framework
 - Committing regularly
 
 ## Completed tasks
+- 2.3 Repository layer + departmentId on students (fixes + ADR 0001 by Claude after review; pushed 2026-09-30)
 - 2.2 Departments module (double-wrap fixed by Kunal; error-code rename by Claude on request; pushed 2026-09-30)
 - 2.1 Student router/controller extraction (pure refactor, all checks passed)
 - 1.2 / 1.2b Express migration (1.2b fixes applied by Claude on request, 2026-09-29; verified + pushed)
 - 1.1 Raw node:http student server (all criteria passed; reviewed 2026-09-29)
 
 ## Pending tasks
-- Phase 02 Task 2.3 (to be assigned)
+- Phase 02 interview notes → Phase 03
 
 ## Backend principles
 - One crash affects all users: never let input crash the process or exhaust memory
 
 ## Interview-relevant concepts
+- Why a repository layer (decoupling, swapping the storage) and what doesn't belong in it (HTTP, business rules)
 - Why separate app from server (testability)
 - Middleware order and 4-arg error middleware
 - Status code semantics: 201 + created resource, 4xx vs 5xx
