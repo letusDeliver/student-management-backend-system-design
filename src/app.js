@@ -29,7 +29,12 @@ app.get("/api/students/:id", (req, res) => {
   const studentId = Number(req.params.id);
 
   if (!Number.isInteger(studentId) || studentId <= 0) {
-    return sendError(res, 400, "INVALID_ID", "Student id must be a positive integer");
+    return sendError(
+      res,
+      400,
+      "INVALID_ID",
+      "Student id must be a positive integer",
+    );
   }
 
   const studentData = students.find((student) => student.id === studentId);
@@ -56,7 +61,12 @@ app.post("/api/students", (req, res) => {
     typeof email !== "string" ||
     !email.trim()
   ) {
-    return sendError(res, 400, "VALIDATION_ERROR", "name and email are required");
+    return sendError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "name and email are required",
+    );
   }
 
   const newStudent = {

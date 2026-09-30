@@ -37,6 +37,9 @@ Phase 01 is complete (Task 1.2b was fixed by Claude at Kunal's request and pushe
 ## Next step
 Phase 02: app.js is growing → introduce express.Router (routes/) + controllers/. Add departments to make the need concrete.
 
+## Study notes
+- `docs/notes/phase-XX-interview.md`: an interview-style summary written at the end of each phase (question → answer → where we saw it).
+
 ## Git workflow
 - Work on `main` and push to `origin main`.
 - **Before every push, update README.md** (status, API table, structure, env vars, roadmap, known limitations) so it matches the code. This is a standing rule from Kunal.
