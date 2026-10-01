@@ -34,5 +34,5 @@ insert into students (name, email, department_id)
 select id, email from students where lower(email) = 'kunal@example.com';
 rollback;
 
--- Nothing above changed the data: still 2 departments, 3 students.
+-- Nothing above changed the data: still 3 departments, 3 students.
 select (select count(*) from departments) as departments, (select count(*) from students) as students;
