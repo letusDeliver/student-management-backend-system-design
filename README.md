@@ -8,9 +8,9 @@ The architecture is **grown one step at a time**. Each layer (routes, controller
 
 | | |
 |---|---|
-| **Current phase** | Phase 04 — Drizzle ORM (starting) |
-| **Last completed** | Phase 03 — PostgreSQL: schema, constraint experiments, SQL querying (`db/queries.sql`) |
-| **Next** | Task 4.1: connect the app to PostgreSQL with Drizzle |
+| **Current phase** | Phase 04 — Drizzle ORM |
+| **Last completed** | Task 4.1: departments served from PostgreSQL through Drizzle and a `pg` connection pool |
+| **Next** | Task 4.2: students on PostgreSQL, constraint errors (`23505` / `23503`) mapped to 409 / 422 |
 
 ## Tech stack
 
@@ -18,7 +18,7 @@ The architecture is **grown one step at a time**. Each layer (routes, controller
 |---|---|---|
 | Runtime | Node.js 22 (ES modules) | |
 | HTTP | Express 5 | |
-| Database | App: in-memory arrays · Schema: PostgreSQL 16 (`db/*.sql`, not wired to the app yet) | Drizzle ORM / Drizzle Kit (Phase 04) |
+| Database | PostgreSQL 16 via `pg` pool + Drizzle ORM (departments) · in-memory array (students) | Students on PostgreSQL, Drizzle Kit migrations |
 | Validation | Manual checks | Zod |
 | Files | — | Multer + Cloudinary |
 | Logging | `console` | Pino |
@@ -39,7 +39,7 @@ npm run dev        # loads .env and starts with file watching on http://localhos
 npm start          # production start (no watcher)
 ```
 
-**Database setup** (the app doesn't use it yet; see Known limitations):
+**Database setup** (required: the server checks the connection at startup and exits if it fails):
 
 ```bash
 cp .env.example .env                      # then set your own password in DATABASE_URL
@@ -57,7 +57,7 @@ In fish, run `set -x DATABASE_URL ...` first, or paste the URL directly.
 | Variable | Default | Description |
 |---|---|---|
 | `PORT` | `3000` | Port the HTTP server listens on |
-| `DATABASE_URL` | none | `postgres://sms_app:<password>@localhost:5432/sms_dev` (used by `psql` now, the app from Phase 04) |
+| `DATABASE_URL` | none | `postgres://sms_app:<password>@localhost:5432/sms_dev` (required; the server refuses to start without it) |
 
 ## API
 
@@ -69,7 +69,7 @@ Base URL: `http://localhost:3000`
 | GET | `/api/students` | List all students | 200 | |
 | GET | `/api/students/:id` | Get one student | 200 | 400 `INVALID_ID`, 404 `STUDENT_NOT_FOUND` |
 | POST | `/api/students` | Create a student (`name`, `email`, `departmentId` required; `departmentId` must be a positive integer referencing an existing department; `id` is server-generated) | 201 (returns the created student) | 400 `INVALID_JSON`, 400 `VALIDATION_ERROR`, 422 `INVALID_DEPARTMENT`, 413 `PAYLOAD_TOO_LARGE` |
-| GET | `/api/departments` | List all departments | 200 | |
+| GET | `/api/departments` | List all departments (from PostgreSQL; includes `createdAt`) | 200 | |
 | GET | `/api/departments/:id` | Get one department | 200 | 400 `INVALID_ID`, 404 `DEPARTMENT_NOT_FOUND` |
 | POST | `/api/departments` | Create a department (`name`, `code` required; `code` is trimmed and uppercased, must be unique) | 201 (returns the created department) | 400 `INVALID_JSON`, 400 `VALIDATION_ERROR`, 409 `DEPARTMENT_CODE_EXISTS`, 413 `PAYLOAD_TOO_LARGE` |
 
@@ -100,7 +100,7 @@ curl -X POST localhost:3000/api/students \
 ```text
 src/
 ├── app.js                       # Express app: body parser, mounts routers, 404 + error middleware (exported, no listen)
-├── server.js                    # Entry point: imports app and starts listening
+├── server.js                    # Entry point: checks the DB connection, then starts listening
 ├── routes/
 │   ├── studentRoutes.js         # /api/students → student controller
 │   └── departmentRoutes.js      # /api/departments → department controller
@@ -109,12 +109,16 @@ src/
 │   └── departmentController.js  # Department HTTP handlers
 ├── repositories/
 │   ├── studentRepository.js     # Student data access (in-memory for now)
-│   └── departmentRepository.js  # Department data access (in-memory for now)
+│   └── departmentRepository.js  # Department data access (PostgreSQL via Drizzle, async)
 ├── middlewares/
 │   ├── notFoundMiddleware.js    # 404 for unmatched routes
 │   └── errorMiddleware.js       # Maps errors to safe JSON responses
+├── db/
+│   ├── client.js                # The one pg Pool + Drizzle instance; fails fast without DATABASE_URL
+│   └── schema.js                # Drizzle table definitions (departments so far)
 └── utils/
     └── apiResponse.js           # sendSuccess / sendError, the single source of the response shape
+drizzle.config.js                # drizzle-kit config (not used yet; do not run `drizzle-kit push`)
 ```
 
 ```text
@@ -144,7 +148,7 @@ See [ADR 0002](docs/adr/0002-postgresql-schema.md). The queries are explained in
 
 `app.js` and `server.js` are separate so tests can import the app without opening a port.
 
-Each resource has a **router** (URL → handler map, relative paths, mounted once in `app.js` under its prefix) and a **controller** (reads `req`, does the work, responds via `apiResponse`). Controllers never touch data directly; they call a **repository** (`findAll` / `findById` / `create`, …), which owns the storage and knows nothing about HTTP. Dependencies point one way: routes → controllers → repositories. See [ADR 0001](docs/adr/0001-repository-layer.md).
+Each resource has a **router** (URL → handler map, relative paths, mounted once in `app.js` under its prefix) and a **controller** (reads `req`, does the work, responds via `apiResponse`). Controllers never touch data directly; they call a **repository** (`findAll` / `findById` / `create`, …), which owns the storage and knows nothing about HTTP. Dependencies point one way: routes → controllers → repositories → `db/`. See [ADR 0001](docs/adr/0001-repository-layer.md) and [ADR 0003](docs/adr/0003-drizzle-and-connection-pool.md).
 
 Architectural decisions are recorded in [`docs/adr/`](docs/adr/). Interview-style notes for each phase are in [`docs/notes/`](docs/notes/).
 
@@ -153,7 +157,7 @@ Architectural decisions are recorded in [`docs/adr/`](docs/adr/). Interview-styl
 - [x] 01 — Node + Express fundamentals
 - [x] 02 — Project structure (routes / controllers / repositories)
 - [x] 03 — PostgreSQL (schema, constraints, SQL querying)
-- [ ] 04 — Drizzle ORM
+- [ ] 04 — Drizzle ORM (4.1 departments ✅)
 - [ ] 05 — Student & Department CRUD
 - [ ] 06 — Validation (Zod)
 - [ ] 07 — Middleware
@@ -176,9 +180,12 @@ Architectural decisions are recorded in [`docs/adr/`](docs/adr/). Interview-styl
 
 ## Known limitations
 
-- The API still stores data in module-level arrays inside each repository: lost on restart, and not shared between instances. The PostgreSQL schema exists (`db/`) but the app is wired to it only in Phase 04 (Drizzle).
+- Students are still stored in a module-level array: lost on restart, not shared between instances, and their `departmentId` is not protected by the foreign key yet. Departments are in PostgreSQL.
+- Duplicate department codes are caught by a check-then-insert, which two simultaneous requests can both pass; the second then gets a 500 from the UNIQUE constraint instead of a 409 (Task 4.2).
+- `/health` doesn't check the database, so it reports `ok` during a database outage.
+- The `departments` table is defined in both `db/schema.sql` and `src/db/schema.js` and kept in sync by hand.
 - Email format isn't validated, and the API allows duplicate emails (the DB schema has `UNIQUE (email)`, but it's case-sensitive).
-- Database setup is manual SQL files. No migrations yet (Drizzle Kit, Phase 04).
+- Database setup is manual SQL files. No migrations yet; `drizzle-kit` is installed but unused, and `drizzle-kit push` would drop the `students` table.
 - The id-parsing and find-or-404 logic is duplicated across controllers (to be extracted once the right abstraction is clear).
 - Deleting departments isn't supported yet; once it is, it must handle students that still reference the department (the DB foreign key already blocks it; the API must map that to a 409).
 - No automated tests yet (planned: Phase 15).

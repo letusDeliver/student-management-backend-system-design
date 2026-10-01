@@ -1,37 +1,36 @@
-const departments = [
-  {
-    id: 1,
-    name: "Computer Science & Engg.",
-    code: "CSE",
-  },
-];
+import { eq } from "drizzle-orm";
+import { db } from "../db/client.js";
+import { departments } from "../db/schema.js";
 
-let nextId = 2;
-
-export const findAll = () => {
-  return departments.map((department) => ({ ...department }));
+export const findAll = async () => {
+  return db.select().from(departments).orderBy(departments.id);
 };
 
-export const findById = (id) => {
-  const department = departments.find((dept) => dept.id === id);
+// Queries always resolve to an array; a miss is an empty array, so the
+// destructured value is undefined.
+export const findById = async (id) => {
+  const [department] = await db
+    .select()
+    .from(departments)
+    .where(eq(departments.id, id));
 
-  return department ? { ...department } : undefined;
+  return department;
 };
 
-export const findByCode = (code) => {
-  const department = departments.find((dept) => dept.code === code);
+export const findByCode = async (code) => {
+  const [department] = await db
+    .select()
+    .from(departments)
+    .where(eq(departments.code, code));
 
-  return department ? { ...department } : undefined;
+  return department;
 };
 
-export const create = ({ name, code }) => {
-  const department = {
-    id: nextId++,
-    name,
-    code,
-  };
+export const create = async ({ name, code }) => {
+  const [department] = await db
+    .insert(departments)
+    .values({ name, code })
+    .returning();
 
-  departments.push(department);
-
-  return { ...department };
+  return department;
 };

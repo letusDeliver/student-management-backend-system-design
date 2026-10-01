@@ -33,7 +33,7 @@ const getStudentById = (req, res) => {
   return sendSuccess(res, 200, studentData);
 };
 
-const createStudent = (req, res) => {
+const createStudent = async (req, res) => {
   // req.body is undefined when the request isn't JSON
   const { name, email, departmentId } = req.body ?? {};
 
@@ -60,7 +60,7 @@ const createStudent = (req, res) => {
     );
   }
 
-  const department = departmentRepository.findById(departmentId);
+  const department = await departmentRepository.findById(departmentId);
 
   if (!department) {
     return sendError(

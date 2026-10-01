@@ -1,12 +1,12 @@
 import { sendSuccess, sendError } from "../utils/apiResponse.js";
 import * as departmentRepository from "../repositories/departmentRepository.js";
 
-const getDepartments = (req, res) => {
-  const departments = departmentRepository.findAll();
+const getDepartments = async (req, res) => {
+  const departments = await departmentRepository.findAll();
   return sendSuccess(res, 200, departments);
 };
 
-const getDepartmentById = (req, res) => {
+const getDepartmentById = async (req, res) => {
   const departmentId = Number(req.params.id);
 
   if (!Number.isInteger(departmentId) || departmentId <= 0) {
@@ -18,7 +18,7 @@ const getDepartmentById = (req, res) => {
     );
   }
 
-  const departmentData = departmentRepository.findById(departmentId);
+  const departmentData = await departmentRepository.findById(departmentId);
 
   if (!departmentData) {
     return sendError(
@@ -32,7 +32,7 @@ const getDepartmentById = (req, res) => {
   return sendSuccess(res, 200, departmentData);
 };
 
-const createDepartment = (req, res) => {
+const createDepartment = async (req, res) => {
   // req.body is undefined when the request isn't JSON
   const { name, code } = req.body ?? {};
 
@@ -52,7 +52,7 @@ const createDepartment = (req, res) => {
 
   const normalizedCode = code.trim().toUpperCase();
 
-  const departmentData = departmentRepository.findByCode(normalizedCode);
+  const departmentData = await departmentRepository.findByCode(normalizedCode);
 
   if (departmentData) {
     return sendError(
@@ -63,7 +63,7 @@ const createDepartment = (req, res) => {
     );
   }
 
-  const newDepartment = departmentRepository.create({
+  const newDepartment = await departmentRepository.create({
     name: name.trim(),
     code: normalizedCode,
   });

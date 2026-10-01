@@ -28,17 +28,19 @@ Node.js (v22), JavaScript (ESM), Express, PostgreSQL, Drizzle ORM + Drizzle Kit,
 01 Node + Express Fundamentals ✅
 02 Project Structure ✅
 03 PostgreSQL ✅
-04 Drizzle ← **NEXT** · 05 Student CRUD · 06 Validation · 07 Middleware · 08 Error Handling · 09 Search/Filter/Sort/Pagination · 10 Transactions · 11 Concurrency · 12 File Uploads · 13 Cloudinary · 14 Logging · 15 Testing · 16 API Docs · 17 Security Basics · 18 Performance · 19 Docker · 20 System Design · 21 Production Readiness · 22 Authentication · 23 Authorization/RBAC
+04 Drizzle ← **IN PROGRESS** (4.1 ✅, 4.2 next) · 05 Student CRUD · 06 Validation · 07 Middleware · 08 Error Handling · 09 Search/Filter/Sort/Pagination · 10 Transactions · 11 Concurrency · 12 File Uploads · 13 Cloudinary · 14 Logging · 15 Testing · 16 API Docs · 17 Security Basics · 18 Performance · 19 Docker · 20 System Design · 21 Production Readiness · 22 Authentication · 23 Authorization/RBAC
 (The order may change if the architecture calls for it. Explain why when it does.)
 
 ## Current architecture
-Express 5 modular monolith (early): `src/app.js` (express.json 100kb limit, `/` + `/health`, mounts routers, notFound + error middleware, exports app), `src/server.js` (listen), `src/routes/{student,department}Routes.js` (default-export Router, relative paths), `src/controllers/{student,department}Controller.js` (named-export HTTP handlers: validation + status codes), `src/repositories/{student,department}Repository.js` (own the in-memory arrays + nextId, not exported; `findAll`/`findById`/`create` (+ `findByCode`); return shallow copies; no HTTP knowledge), `src/middlewares/{notFound,error}Middleware.js`, `src/utils/apiResponse.js` (sendSuccess/sendError, the only place the response envelope is built). Dependencies: routes → controllers → repositories. No service layer yet. Branch `main` → origin (github.com/letusDeliver/student-management-backend-system-design).
+Express 5 modular monolith (early): `src/app.js` (express.json 100kb limit, `/` + `/health`, mounts routers, notFound + error middleware, exports app), `src/server.js` (`SELECT 1` then listen; exit 1 on failure), `src/routes/{student,department}Routes.js` (default-export Router, relative paths), `src/controllers/{student,department}Controller.js` (named-export HTTP handlers: validation + status codes), `src/db/client.js` (the one `pg` Pool + `db = drizzle(pool)`, throws without DATABASE_URL, pool `error` listener), `src/db/schema.js` (Drizzle `departments`), `src/repositories/departmentRepository.js` (**async, Drizzle/Postgres**; `findAll`/`findById`/`findByCode`/`create`; miss = `undefined`), `src/repositories/studentRepository.js` (still sync, in-memory array + nextId, shallow copies), no HTTP knowledge in either, `src/middlewares/{notFound,error}Middleware.js`, `src/utils/apiResponse.js` (sendSuccess/sendError, the only place the response envelope is built). Root `drizzle.config.js` exists but drizzle-kit is unused. Dependencies: routes → controllers → repositories → db. No service layer yet. Branch `main` → origin (github.com/letusDeliver/student-management-backend-system-design).
 
 ## Current task
-Phase 03 complete (2026-10-01). Task 3.2: Kunal wrote queries 1 to 10 in his DB client (JOINs, `count(s.id)`, HAVING all correct), then asked Claude to complete it. Claude added `db/queries.sql` (re-runnable, leaves data unchanged), moved the empty `ME` department into the seed, qualified `order by s.name`, added the `created_at, id` tie-breaker, `RETURNING`, the BEGIN/ROLLBACK demo, and EXPLAIN ANALYZE with an explicit `ANALYZE` (fresh tables have no statistics, so the planner picked index scans until analyzed). Notes: `docs/notes/task-3.2-sql-querying.md`, `docs/notes/phase-03-interview.md`. Docker is deferred by Kunal: local Homebrew Postgres 16 for now.
+Task 4.1 done (2026-10-01). Kunal installed drizzle-orm/pg (+ dotenv and drizzle-kit, which he chose to keep), wrote `client.js` and the `SELECT 1` startup check, and accidentally dropped the tables; Claude restored them and finished on request: `schema.js`, async department repository, `await` in both controllers, pool `error` listener (an idle connection killed by Postgres crashed the process), startup log shows `ECONNREFUSED`, root `drizzle.config.js`, ADR 0003. Verified: all acceptance checks, restart persistence, 500 on query failure, survival after `pg_terminate_backend`.
+
+Previous: Phase 03 complete (2026-10-01). Task 3.2: Kunal wrote queries 1 to 10 in his DB client (JOINs, `count(s.id)`, HAVING all correct), then asked Claude to complete it. Claude added `db/queries.sql` (re-runnable, leaves data unchanged), moved the empty `ME` department into the seed, qualified `order by s.name`, added the `created_at, id` tie-breaker, `RETURNING`, the BEGIN/ROLLBACK demo, and EXPLAIN ANALYZE with an explicit `ANALYZE` (fresh tables have no statistics, so the planner picked index scans until analyzed). Notes: `docs/notes/task-3.2-sql-querying.md`, `docs/notes/phase-03-interview.md`. Docker is deferred by Kunal: local Homebrew Postgres 16 for now.
 
 ## Next step
-Phase 04 Task 4.1 (Drizzle): install `drizzle-orm` + `pg` + `drizzle-kit`, a connection pool module, Drizzle schema matching `db/schema.sql`, first migration; then make the repositories async on Postgres and map 23505/23503 to 409/422. Still pending: the duplicated id-parse / find-or-404 blocks (extract when PUT/DELETE add a third copy); ESLint `no-undef` when tooling is set up.
+Task 4.2: `students` in `src/db/schema.js` + async student repository on Postgres; map 23505 → 409 and 23503 → 422 (remove the check-then-insert race). Then Task 4.3: drizzle-kit migrations replace `db/schema.sql` (introspect/baseline; never `push` while schema.js is incomplete). Open scale questions from 4.1 to discuss: request 11 with a pool of 10; instances × pool size vs max_connections. Still pending: the duplicated id-parse / find-or-404 blocks (extract when PUT/DELETE add a third copy); ESLint `no-undef` when tooling is set up.
 
 ## Study notes
 - `docs/notes/phase-XX-interview.md`: an interview-style summary written at the end of each phase (question → answer → where we saw it).
@@ -52,6 +54,7 @@ Phase 04 Task 4.1 (Drizzle): install `drizzle-orm` + `pg` + `drizzle-kit`, a con
 ## Architectural decisions
 - ADR 0001: repository layer (docs/adr/0001-repository-layer.md)
 - ADR 0002: PostgreSQL, integrity in the schema, least-privilege role (docs/adr/0002-postgresql-schema.md)
+- ADR 0003: Drizzle over one pg Pool, fail-fast startup, pool error listener (docs/adr/0003-drizzle-and-connection-pool.md)
 
 ## Database schema summary
 Local PG 16 (Homebrew), db `sms_dev` owned by role `sms_app` (not a superuser); `DATABASE_URL` in `.env`.
@@ -74,15 +77,18 @@ Local PG 16 (Homebrew), db `sms_dev` owned by role `sms_app` (not a superuser); 
 
 ## Dev commands
 - `npm run dev` → node --env-file=.env --watch src/server.js
-- `npm start` → node src/server.js (production)
+- `npm start` → node src/server.js (production; `.env` loaded by dotenv)
 - DB: `psql "$DATABASE_URL" -f db/schema.sql` then `-f db/seed.sql`; `-f db/experiments.sql` to see the constraints fire; `-f db/queries.sql` for the Task 3.2 queries and plans
 
 ## Known issues / tech debt
 - Email format isn't validated; duplicate emails are allowed (Zod + a UNIQUE constraint later).
 - errorMiddleware logs every error, including 4xx, via console.error (Pino in Phase 14); other body-parser 4xx errors (e.g. 415) fall through to 500 (Phase 08).
-- The app still uses module-level in-memory arrays; the Postgres schema exists but is wired up in Phase 04.
+- Students still use a module-level in-memory array; departments are on Postgres (Task 4.1).
+- `departments` is defined in both `db/schema.sql` and `src/db/schema.js`; `drizzle-kit push` would drop `students`.
+- Duplicate department code is a check-then-insert race → 500 on the loser (map 23505 in 4.2). `/health` doesn't check the DB.
+- dotenv is imported in two files and `--env-file` is also used in dev (redundant; Kunal chose to keep dotenv).
 - The API allows duplicate emails, while the DB would reject them with 23505. Map constraint errors to 409/422 in Phase 04/08.
 - id parsing / find-or-404 duplicated in both controllers.
-- Repositories are sync; they become async with Drizzle (Phase 04), and controllers will then need await.
+- The student repository is still sync; it becomes async in 4.2.
 - No linter: an undefined identifier (missing import) is only caught at runtime.
 - /health response is intentionally not wrapped in the envelope (for load balancers).

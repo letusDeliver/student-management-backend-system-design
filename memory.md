@@ -23,10 +23,13 @@
 - GROUP BY the primary key allows selecting that table's other columns; WHERE filters rows, HAVING filters groups
 - ORDER BY needs a unique tie-breaker; `now()` is the transaction start time, so one statement's rows share `created_at`
 - `RETURNING` replaces write-then-read; BEGIN/ROLLBACK makes changes private until COMMIT
+- Driver (`pg`) vs pool vs query builder (Drizzle); one Pool per process; Drizzle queries resolve to arrays (`const [row] = await …`)
+- Express 5 forwards rejected promises from async handlers to the error middleware (no try/catch needed in controllers)
+- An EventEmitter `error` with no listener crashes the process → `pool.on("error")` for idle connections
 - The planner uses statistics, not the table: a fresh table (reltuples -1) gets index scans until `ANALYZE`; small tables correctly use Seq Scan
 
 ## Currently learning
-- Phase 04 Drizzle ORM (next). Phase 03 PostgreSQL finished 2026-10-01.
+- Phase 04 Drizzle ORM (in progress; 4.1 departments done, 4.2 students + constraint error mapping next)
 
 ## Mistakes & lessons
 - Mistake: buffered the request body with no size limit (a 200MB POST pushed RSS from 88MB to 639MB).
@@ -67,9 +70,12 @@
 - Mistake (3.2): UPDATE followed by `select *` instead of `RETURNING`; hard-coded `id = 1`; INSERT in a file meant to be re-run.
   Lesson: `RETURNING` for write results; practice files must be re-runnable (seed data in the seed, writes rolled back).
 - Mistake (3.2): stopped at query 10; skipped the transaction and EXPLAIN parts. Lesson: check the acceptance criteria before handing in.
+- Mistake (4.1): the tables disappeared mid-task (cause unknown, probably only the DROP line was run). Lesson: run schema.sql + seed.sql as whole files; a re-runnable schema makes recovery one command.
+- Mistake (4.1): added dotenv and drizzle-kit although the task excluded them; empty `drizzle.config.js` inside `src/`. Kept by choice. Lesson: read the constraints; config files live in the project root.
 - Mistake: `start` script used nodemon. Lesson: `start` = production command, no watchers.
 
 ## Patterns I understand
+- Fail-fast startup: check the DB connection before `listen`, exit non-zero on failure (did this unprompted in 4.1)
 - Defensive copies from repositories ({...obj}) so callers can't mutate stored state (did this unprompted in 2.3)
 - Router + controller per resource; app.js only wires things together
 - Normalize input before a uniqueness check
@@ -84,6 +90,7 @@
 - Committing regularly
 
 ## Completed tasks
+- 4.1 Departments on Postgres via Drizzle (Kunal: install, client.js, startup check; Claude finished schema, repository, awaits, pool error listener, ADR 0003 on request; 2026-10-01)
 - 3.2 SQL querying (Kunal: queries 1 to 10, JOINs/GROUP BY/HAVING correct; Claude completed transaction, EXPLAIN, notes on request; 2026-10-01). Phase 03 done.
 - 3.1 Postgres role/db + schema + constraint experiments (Kunal: role, db, CREATE TABLEs; Claude completed the files on request + ADR 0002; 2026-09-30)
 - 2.3 Repository layer + departmentId on students (fixes + ADR 0001 by Claude after review; pushed 2026-09-30)
@@ -93,7 +100,8 @@
 - 1.1 Raw node:http student server (all criteria passed; reviewed 2026-09-29)
 
 ## Pending tasks
-- Phase 04 Task 4.1 (to be assigned): Drizzle + pg pool, schema file matching db/schema.sql, first migration, async repositories
+- Phase 04 Task 4.2 (to be assigned): students on Postgres, map 23505/23503 to 409/422
+- Answer the 4.1 scale questions: request 11 with a pool of 10; how many instances before max_connections
 
 ## Backend principles
 - One crash affects all users: never let input crash the process or exhaust memory
@@ -107,6 +115,7 @@
 - INNER vs LEFT JOIN, count(*) vs count(col), WHERE vs HAVING, reading EXPLAIN ANALYZE, stale statistics (see docs/notes/phase-03-interview.md)
 
 ## System-design concepts learned
+- Connections are a finite resource: instances × pool size must stay under Postgres max_connections (~100) → pooler (PgBouncer) beyond that
 - In-process state breaks with >1 instance behind a load balancer → state must live outside the process (DB)
 - Without an index, query cost grows linearly with table size (seq scan); an index keeps lookups ~flat
 - Unbounded list queries (no LIMIT) exhaust app memory at scale → every list endpoint needs a bounded page size
