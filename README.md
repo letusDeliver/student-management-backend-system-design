@@ -8,9 +8,9 @@ The architecture is **grown one step at a time**. Each layer (routes, controller
 
 | | |
 |---|---|
-| **Current phase** | Phase 03 — PostgreSQL |
-| **Last completed** | Task 3.1: PostgreSQL database, schema (`db/`), constraint experiments |
-| **Next** | Task 3.2: SQL querying (JOINs, filtering, aggregates, UPDATE/DELETE) |
+| **Current phase** | Phase 04 — Drizzle ORM (starting) |
+| **Last completed** | Phase 03 — PostgreSQL: schema, constraint experiments, SQL querying (`db/queries.sql`) |
+| **Next** | Task 4.1: connect the app to PostgreSQL with Drizzle |
 
 ## Tech stack
 
@@ -45,8 +45,9 @@ npm start          # production start (no watcher)
 cp .env.example .env                      # then set your own password in DATABASE_URL
 psql -d postgres -f db/setup.sql          # as a superuser: creates role sms_app + database sms_dev (edit the password first)
 psql "$DATABASE_URL" -f db/schema.sql     # re-runnable: drops and recreates tables (destroys data)
-psql "$DATABASE_URL" -f db/seed.sql       # 2 departments, 3 students
+psql "$DATABASE_URL" -f db/seed.sql       # 3 departments (ME has no students), 3 students
 psql "$DATABASE_URL" -f db/experiments.sql  # every constraint rejecting bad data, with SQLSTATE codes
+psql "$DATABASE_URL" -f db/queries.sql    # JOINs, aggregates, a rolled-back transaction, EXPLAIN ANALYZE (one expected error: 23503)
 ```
 
 In fish, run `set -x DATABASE_URL ...` first, or paste the URL directly.
@@ -121,7 +122,8 @@ db/
 ├── setup.sql                    # Role sms_app + database sms_dev (run once as a superuser)
 ├── schema.sql                   # departments, students: PK, NOT NULL, UNIQUE, FK, FK index
 ├── seed.sql                     # Development data
-└── experiments.sql              # Statements that must fail (23505 / 23503 / 23502 / 428C9)
+├── experiments.sql              # Statements that must fail (23505 / 23503 / 23502 / 428C9)
+└── queries.sql                  # Filtering, JOINs, GROUP BY, RETURNING, transactions, query plans (leaves data unchanged)
 ```
 
 ### Database schema
@@ -138,19 +140,19 @@ db/
 | | `department_id` | integer | NOT NULL, FK → `departments(id)`, no cascade; indexed |
 | | `created_at` | timestamptz | NOT NULL, default `now()` |
 
-See [ADR 0002](docs/adr/0002-postgresql-schema.md).
+See [ADR 0002](docs/adr/0002-postgresql-schema.md). The queries are explained in [docs/notes/task-3.2-sql-querying.md](docs/notes/task-3.2-sql-querying.md).
 
 `app.js` and `server.js` are separate so tests can import the app without opening a port.
 
 Each resource has a **router** (URL → handler map, relative paths, mounted once in `app.js` under its prefix) and a **controller** (reads `req`, does the work, responds via `apiResponse`). Controllers never touch data directly; they call a **repository** (`findAll` / `findById` / `create`, …), which owns the storage and knows nothing about HTTP. Dependencies point one way: routes → controllers → repositories. See [ADR 0001](docs/adr/0001-repository-layer.md).
 
-Architectural decisions are recorded in [`docs/adr/`](docs/adr/).
+Architectural decisions are recorded in [`docs/adr/`](docs/adr/). Interview-style notes for each phase are in [`docs/notes/`](docs/notes/).
 
 ## Roadmap
 
 - [x] 01 — Node + Express fundamentals
 - [x] 02 — Project structure (routes / controllers / repositories)
-- [ ] 03 — PostgreSQL (3.1 schema ✅)
+- [x] 03 — PostgreSQL (schema, constraints, SQL querying)
 - [ ] 04 — Drizzle ORM
 - [ ] 05 — Student & Department CRUD
 - [ ] 06 — Validation (Zod)

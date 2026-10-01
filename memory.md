@@ -19,9 +19,14 @@
 - Constraints and SQLSTATE: 23505 unique, 23503 FK, 23502 not null, 428C9 GENERATED ALWAYS, 25P02 aborted transaction
 - Identity/sequence values are never rolled back → id gaps are normal
 - FK columns aren't auto-indexed; EXPLAIN: Seq Scan vs Bitmap Index Scan (100k rows: 2.6 ms vs 0.31 ms)
+- INNER vs LEFT JOIN (LEFT keeps unmatched left rows with NULLs); `count(col)` skips NULLs, `count(*)` doesn't
+- GROUP BY the primary key allows selecting that table's other columns; WHERE filters rows, HAVING filters groups
+- ORDER BY needs a unique tie-breaker; `now()` is the transaction start time, so one statement's rows share `created_at`
+- `RETURNING` replaces write-then-read; BEGIN/ROLLBACK makes changes private until COMMIT
+- The planner uses statistics, not the table: a fresh table (reltuples -1) gets index scans until `ANALYZE`; small tables correctly use Seq Scan
 
 ## Currently learning
-- Phase 03 PostgreSQL (in progress; 3.1 done, 3.2 SQL querying next)
+- Phase 04 Drizzle ORM (next). Phase 03 PostgreSQL finished 2026-10-01.
 
 ## Mistakes & lessons
 - Mistake: buffered the request body with no size limit (a 200MB POST pushed RSS from 88MB to 639MB).
@@ -56,6 +61,12 @@
 - Mistake (3.1): pasted `\r` and SQL onto one line → SQL swallowed as \r's arguments.
   Lesson: a backslash command consumes the rest of its line.
 - Mistake (3.1): schema without DROP IF EXISTS / trailing `;` / FK index. Lesson: schema files must be re-runnable; index FK columns.
+- Mistake (3.2): `order by name` unqualified in a join → works only while one selected column is called `name`; otherwise "ambiguous".
+  Lesson: qualify every column in a multi-table query.
+- Mistake (3.2): `order by id desc` for "newest". Lesson: sort by the column that carries the meaning (`created_at`), with `id` as tie-breaker.
+- Mistake (3.2): UPDATE followed by `select *` instead of `RETURNING`; hard-coded `id = 1`; INSERT in a file meant to be re-run.
+  Lesson: `RETURNING` for write results; practice files must be re-runnable (seed data in the seed, writes rolled back).
+- Mistake (3.2): stopped at query 10; skipped the transaction and EXPLAIN parts. Lesson: check the acceptance criteria before handing in.
 - Mistake: `start` script used nodemon. Lesson: `start` = production command, no watchers.
 
 ## Patterns I understand
@@ -66,12 +77,14 @@
 - Early `return` from response helpers to avoid double-send; returning after registering async listeners
 
 ## Patterns I struggle with
+- Finishing every acceptance criterion before handing a task in (3.2: transaction + EXPLAIN left out)
 - psql/shell context switching (which prompt am I in?)
 - Testing only the error paths and skipping the happy path
 - Keeping earlier correctness (validation, id generation) when rewriting code in a new framework
 - Committing regularly
 
 ## Completed tasks
+- 3.2 SQL querying (Kunal: queries 1 to 10, JOINs/GROUP BY/HAVING correct; Claude completed transaction, EXPLAIN, notes on request; 2026-10-01). Phase 03 done.
 - 3.1 Postgres role/db + schema + constraint experiments (Kunal: role, db, CREATE TABLEs; Claude completed the files on request + ADR 0002; 2026-09-30)
 - 2.3 Repository layer + departmentId on students (fixes + ADR 0001 by Claude after review; pushed 2026-09-30)
 - 2.2 Departments module (double-wrap fixed by Kunal; error-code rename by Claude on request; pushed 2026-09-30)
@@ -80,7 +93,7 @@
 - 1.1 Raw node:http student server (all criteria passed; reviewed 2026-09-29)
 
 ## Pending tasks
-- Phase 03 Task 3.2 (to be assigned): SQL querying: WHERE/ORDER/LIMIT, INNER vs LEFT JOIN, GROUP BY, UPDATE/DELETE, BEGIN/ROLLBACK, EXPLAIN
+- Phase 04 Task 4.1 (to be assigned): Drizzle + pg pool, schema file matching db/schema.sql, first migration, async repositories
 
 ## Backend principles
 - One crash affects all users: never let input crash the process or exhaust memory
@@ -91,7 +104,9 @@
 - Middleware order and 4-arg error middleware
 - Status code semantics: 201 + created resource, 4xx vs 5xx
 - Why constraints belong in the DB (check-then-insert races); SERIAL vs IDENTITY; why index FK columns
+- INNER vs LEFT JOIN, count(*) vs count(col), WHERE vs HAVING, reading EXPLAIN ANALYZE, stale statistics (see docs/notes/phase-03-interview.md)
 
 ## System-design concepts learned
 - In-process state breaks with >1 instance behind a load balancer → state must live outside the process (DB)
 - Without an index, query cost grows linearly with table size (seq scan); an index keeps lookups ~flat
+- Unbounded list queries (no LIMIT) exhaust app memory at scale → every list endpoint needs a bounded page size
